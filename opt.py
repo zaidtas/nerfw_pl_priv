@@ -13,13 +13,22 @@ def get_opts():
                         help='''what perturbation to add to data.
                                 Available choices: [], ["color"], ["occ"] or ["color", "occ"]
                              ''')
+    parser.add_argument('--nonrandom_occ', default=False, action="store_true",
+                        help='whether to use non-random occlusion')
+    parser.add_argument('--occ_yaw', type=float, default=0.0,
+                        help='yaw angle for selecting images for non-random occlusion')
+    parser.add_argument('--yaw_threshold', type=float, default=0.0,
+                        help='threshold for selecting images for non-random occlusion')
     parser.add_argument('--img_wh', nargs="+", type=int, default=[800, 800],
                         help='resolution (img_w, img_h) of the image')
+    
     # for phototourism
     parser.add_argument('--img_downscale', type=int, default=1,
                         help='how much to downscale the images for phototourism dataset')
     parser.add_argument('--use_cache', default=False, action="store_true",
                         help='whether to use ray cache (make sure img_downscale is the same)')
+    parser.add_argument('--use_mask', default=False, action="store_true",
+                        help='use masked images')
 
     # original NeRF parameters
     parser.add_argument('--N_emb_xyz', type=int, default=10,
@@ -99,5 +108,8 @@ def get_opts():
                         help='experiment name')
     parser.add_argument('--refresh_every', type=int, default=1,
                         help='print the progress bar every X steps')
+    # Federated Learning parameters
+    parser.add_argument('--num_clients', type=int, default=1,help='number of clients')
+    parser.add_argument('--num_rounds', type=int, default=10,help='number of rounds')
 
     return parser.parse_args()

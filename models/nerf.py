@@ -100,7 +100,7 @@ class NeRF(nn.Module):
             self.transient_rgb = nn.Sequential(nn.Linear(W//2, 3), nn.Sigmoid())
             self.transient_beta = nn.Sequential(nn.Linear(W//2, 1), nn.Softplus())
 
-    def forward(self, x, sigma_only=False, output_transient=True):
+    def forward(self, x, sigma_only=False, output_transient=True, output_xyz_encoding=False):
         """
         Encodes input (xyz+dir) to rgb+sigma (not ready to render yet).
         For rendering this ray, please see rendering.py
@@ -146,10 +146,12 @@ class NeRF(nn.Module):
         dir_encoding = self.dir_encoding(dir_encoding_input)
         static_rgb = self.static_rgb(dir_encoding) # (B, 3)
         static = torch.cat([static_rgb, static_sigma], 1) # (B, 4)
-
+        if output_xyz_encoding:
+            return xyz_encoding_final
+        
         if not output_transient:
             return static
-
+        # import pdb; pdb.set_trace()
         transient_encoding_input = torch.cat([xyz_encoding_final, input_t], 1)
         transient_encoding = self.transient_encoding(transient_encoding_input)
         transient_sigma = self.transient_sigma(transient_encoding) # (B, 1)

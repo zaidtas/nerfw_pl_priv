@@ -1,5 +1,7 @@
 import torch
 import os
+#TODO: make the gpu selection an input variable
+os.environ["CUDA_VISIBLE_DEVICES"] = '7'
 import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
@@ -36,6 +38,8 @@ def get_opts():
                         help='how much to downscale the images for phototourism dataset')
     parser.add_argument('--use_cache', default=False, action="store_true",
                         help='whether to use ray cache (make sure img_downscale is the same)')
+    parser.add_argument('--use_mask', default=False, action="store_true",
+                        help='use masked images')
 
     # original NeRF parameters
     parser.add_argument('--N_emb_xyz', type=int, default=10,
@@ -114,7 +118,8 @@ if __name__ == "__main__":
     args = get_opts()
 
     kwargs = {'root_dir': args.root_dir,
-              'split': args.split}
+              'split': args.split,
+              'use_mask': args.use_mask}
     if args.dataset_name == 'blender':
         kwargs['img_wh'] = tuple(args.img_wh)
     else:

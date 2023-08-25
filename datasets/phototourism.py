@@ -14,7 +14,7 @@ from .colmap_utils import \
 
 
 class PhototourismDataset(Dataset):
-    def __init__(self, root_dir, split='train', img_downscale=1, val_num=1, use_cache=False):
+    def __init__(self, root_dir, split='train', img_downscale=1, val_num=1, use_cache=False, use_mask=False):
         """
         img_downscale: how much scale to downsample the training images.
                        The original image sizes are around 500~100, so value of 1 or 2
@@ -25,21 +25,25 @@ class PhototourismDataset(Dataset):
         use_cache: during data preparation, use precomputed rays (useful to accelerate
                    data loading, especially for multigpu!)
         """
+        # import pdb; pdb.set_trace()
         self.root_dir = root_dir
         self.split = split
         assert img_downscale >= 1, 'image can only be downsampled, please set img_downscale>=1!'
         self.img_downscale = img_downscale
         if split == 'val': # image downscale=1 will cause OOM in val mode
-            self.img_downscale = max(2, self.img_downscale)
+            self.img_downscale = max(1, self.img_downscale)
         self.val_num = max(1, val_num) # at least 1
         self.use_cache = use_cache
+        self.use_mask = use_mask
+        self.masked_str = '_masked' if self.use_mask else ''
         self.define_transforms()
-
         self.read_meta()
         self.white_back = False
+        
 
     def read_meta(self):
         # read all files in the tsv first (split to train and test later)
+        # import pdb; pdb.set_trace()
         tsv = glob.glob(os.path.join(self.root_dir, '*.tsv'))[0]
         self.scene_name = os.path.basename(tsv)[:-4]
         self.files = pd.read_csv(tsv, sep='\t')
@@ -50,9 +54,9 @@ class PhototourismDataset(Dataset):
         # Attention! The 'id' column in the tsv is BROKEN, don't use it!!!!
         # Instead, read the id from images.bin using image file name!
         if self.use_cache:
-            with open(os.path.join(self.root_dir, f'cache/img_ids.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache{self.masked_str}/img_ids.pkl'), 'rb') as f:
                 self.img_ids = pickle.load(f)
-            with open(os.path.join(self.root_dir, f'cache/image_paths.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache{self.masked_str}/image_paths.pkl'), 'rb') as f:
                 self.image_paths = pickle.load(f)
         else:
             imdata = read_images_binary(os.path.join(self.root_dir, 'dense/sparse/images.bin'))
@@ -68,7 +72,7 @@ class PhototourismDataset(Dataset):
 
         # Step 2: read and rescale camera intrinsics
         if self.use_cache:
-            with open(os.path.join(self.root_dir, f'cache/Ks{self.img_downscale}.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache{self.masked_str}/Ks{self.img_downscale}.pkl'), 'rb') as f:
                 self.Ks = pickle.load(f)
         else:
             self.Ks = {} # {id: K}
@@ -87,7 +91,7 @@ class PhototourismDataset(Dataset):
 
         # Step 3: read c2w poses (of the images in tsv file only) and correct the order
         if self.use_cache:
-            self.poses = np.load(os.path.join(self.root_dir, 'cache/poses.npy'))
+            self.poses = np.load(os.path.join(self.root_dir, f'cache{self.masked_str}/poses.npy'))
         else:
             w2c_mats = []
             bottom = np.array([0, 0, 0, 1.]).reshape(1, 4)
@@ -103,10 +107,10 @@ class PhototourismDataset(Dataset):
 
         # Step 4: correct scale
         if self.use_cache:
-            self.xyz_world = np.load(os.path.join(self.root_dir, 'cache/xyz_world.npy'))
-            with open(os.path.join(self.root_dir, f'cache/nears.pkl'), 'rb') as f:
+            self.xyz_world = np.load(os.path.join(self.root_dir, f'cache{self.masked_str}/xyz_world.npy'))
+            with open(os.path.join(self.root_dir, f'cache{self.masked_str}/nears.pkl'), 'rb') as f:
                 self.nears = pickle.load(f)
-            with open(os.path.join(self.root_dir, f'cache/fars.pkl'), 'rb') as f:
+            with open(os.path.join(self.root_dir, f'cache{self.masked_str}/fars.pkl'), 'rb') as f:
                 self.fars = pickle.load(f)
         else:
             pts3d = read_points3d_binary(os.path.join(self.root_dir, 'dense/sparse/points3D.bin'))
@@ -141,19 +145,23 @@ class PhototourismDataset(Dataset):
         if self.split == 'train': # create buffer of all rays and rgb data
             if self.use_cache:
                 all_rays = np.load(os.path.join(self.root_dir,
-                                                f'cache/rays{self.img_downscale}.npy'))
+                                                f'cache{self.masked_str}/rays{self.img_downscale}.npy'))
                 self.all_rays = torch.from_numpy(all_rays)
                 all_rgbs = np.load(os.path.join(self.root_dir,
-                                                f'cache/rgbs{self.img_downscale}.npy'))
+                                                f'cache{self.masked_str}/rgbs{self.img_downscale}.npy'))
                 self.all_rgbs = torch.from_numpy(all_rgbs)
             else:
                 self.all_rays = []
                 self.all_rgbs = []
                 for id_ in self.img_ids_train:
                     c2w = torch.FloatTensor(self.poses_dict[id_])
-
-                    img = Image.open(os.path.join(self.root_dir, 'dense/images',
-                                                  self.image_paths[id_])).convert('RGB')
+                    # import pdb; pdb.set_trace()
+                    if not self.use_mask:
+                        img = Image.open(os.path.join(self.root_dir, 'dense/images',
+                                                    self.image_paths[id_])).convert('RGB')
+                    else:
+                        img = Image.open(os.path.join(self.root_dir, 'dense/masked_images',
+                                                    self.image_paths[id_])).convert('RGB')
                     img_w, img_h = img.size
                     if self.img_downscale > 1:
                         img_w = img_w//self.img_downscale
@@ -209,7 +217,11 @@ class PhototourismDataset(Dataset):
                 id_ = self.img_ids_train[idx]
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
 
-            img = Image.open(os.path.join(self.root_dir, 'dense/images',
+            if not self.use_mask:
+                img = Image.open(os.path.join(self.root_dir, 'dense/images',
+                                          self.image_paths[id_])).convert('RGB')
+            else:
+                img = Image.open(os.path.join(self.root_dir, 'dense/masked_images',
                                           self.image_paths[id_])).convert('RGB')
             img_w, img_h = img.size
             if self.img_downscale > 1:

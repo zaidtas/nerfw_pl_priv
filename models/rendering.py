@@ -219,7 +219,9 @@ def render_rays(models,
         results[f'depth_{typ}'] = reduce(weights*z_vals, 'n1 n2 -> n1', 'sum')
         return
 
+##### Start of the funciton render_rays #####
     embedding_xyz, embedding_dir = embeddings['xyz'], embeddings['dir']
+    # import pdb; pdb.set_trace()
 
     # Decompose the inputs
     N_rays = rays.shape[0]

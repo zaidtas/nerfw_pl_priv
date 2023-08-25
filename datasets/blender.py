@@ -8,7 +8,7 @@ from torchvision import transforms as T
 
 from .ray_utils import *
 
-def add_perturbation(img, perturbation, seed):
+def add_perturbation(img, perturbation, seed, random_occ = True):
     if 'color' in perturbation:
         np.random.seed(seed)
         img_np = np.array(img)/255.0
@@ -18,22 +18,29 @@ def add_perturbation(img, perturbation, seed):
         img = Image.fromarray((255*img_np).astype(np.uint8))
     if 'occ' in perturbation:
         draw = ImageDraw.Draw(img)
-        np.random.seed(seed)
-        left = np.random.randint(200, 400)
-        top = np.random.randint(200, 400)
-        for i in range(10):
-            np.random.seed(10*seed+i)
-            random_color = tuple(np.random.choice(range(256), 3))
-            draw.rectangle(((left+20*i, top), (left+20*(i+1), top+200)),
-                            fill=random_color)
+        if random_occ:
+            np.random.seed(seed)
+            left = np.random.randint(200, 400)
+            top = np.random.randint(200, 400)
+            for i in range(10):
+                np.random.seed(10*seed+i)
+                random_color = tuple(np.random.choice(range(256), 3))
+                draw.rectangle(((left+20*i, top), (left+20*(i+1), top+200)),
+                                fill=random_color)
+        else:
+            draw.rectangle(((200, 200), (400, 400)), fill=(0, 0, 0))
     return img
 
 
 class BlenderDataset(Dataset):
     def __init__(self, root_dir, split='train', img_wh=(800, 800),
-                 perturbation=[]):
+                 perturbation=[], random_occ = True, occ_yaw = 0.0, yaw_threshold = 20.0):
         self.root_dir = root_dir
+        self.occ_yaw = occ_yaw
+        self.yaw_threshold = yaw_threshold
+        self.add_to_public_data = [3,13,21,33,48,55]
         self.split = split
+        self.random_occ = random_occ
         assert img_wh[0] == img_wh[1], 'image width must equal image height!'
         self.img_wh = img_wh
         self.define_transforms()
@@ -50,7 +57,6 @@ class BlenderDataset(Dataset):
         with open(os.path.join(self.root_dir,
                                f"transforms_{self.split.split('_')[-1]}.json"), 'r') as f:
             self.meta = json.load(f)
-
         w, h = self.img_wh
         self.focal = 0.5*800/np.tan(0.5*self.meta['camera_angle_x']) # original focal length
                                                                      # when W=800
@@ -76,12 +82,37 @@ class BlenderDataset(Dataset):
             for t, frame in enumerate(self.meta['frames']):
                 pose = np.array(frame['transform_matrix'])[:3, :4]
                 c2w = torch.FloatTensor(pose)
+                 # Extract the 3x3 rotation matrix (R) from the 4x4 transformation matrix
+                rotation_matrix = pose[:3, :3]
+                
+                # Calculate Euler angles (yaw, pitch, roll) from the rotation matrix
+                yaw = np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
+                pitch = np.arctan2(-rotation_matrix[2, 0], np.sqrt(rotation_matrix[2, 1]**2 + rotation_matrix[2, 2]**2))
+                # roll = np.arctan2(rotation_matrix[2, 1], rotation_matrix[2, 2])
+                
+                # Convert angles from radians to degrees
+                yaw_deg = np.degrees(yaw)
+                pitch_deg = np.degrees(pitch)
+                # roll_deg = np.degrees(roll)
+
 
                 image_path = os.path.join(self.root_dir, f"{frame['file_path']}.png")
                 img = Image.open(image_path)
-                if t != 0: # perturb everything except the first image.
-                           # cf. Section D in the supplementary material
-                    img = add_perturbation(img, self.perturbation, t)
+
+                if self.perturbation == [] and np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold and t not in self.add_to_public_data:
+                    #skip the image and print the image path
+                    print('skipping image:', image_path)
+                    continue
+
+
+                if self.random_occ:
+                    if t != 0:                        
+                        img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
+                else:
+                    if np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold and t not in self.add_to_public_data:
+                        print('image:', image_path)
+                        img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
+
 
                 img = img.resize(self.img_wh, Image.LANCZOS)
                 img = self.transform(img) # (4, h, w)
@@ -120,12 +151,32 @@ class BlenderDataset(Dataset):
         else: # create data for each image separately
             frame = self.meta['frames'][idx]
             c2w = torch.FloatTensor(frame['transform_matrix'])[:3, :4]
+
+             # Extract the 3x3 rotation matrix (R) from the 4x4 transformation matrix
+            rotation_matrix = c2w[:3, :3]
+            
+            # Calculate Euler angles (yaw, pitch, roll) from the rotation matrix
+            yaw = np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
+            pitch = np.arctan2(-rotation_matrix[2, 0], np.sqrt(rotation_matrix[2, 1]**2 + rotation_matrix[2, 2]**2))
+            # roll = np.arctan2(rotation_matrix[2, 1], rotation_matrix[2, 2])
+            
+            # Convert angles from radians to degrees
+            yaw_deg = np.degrees(yaw)
+            pitch_deg = np.degrees(pitch)
+            # roll_deg = np.degrees(roll)
             t = 0 # transient embedding index, 0 for val and test (no perturbation)
 
             img = Image.open(os.path.join(self.root_dir, f"{frame['file_path']}.png"))
-            if self.split == 'test_train' and idx != 0:
-                t = idx
-                img = add_perturbation(img, self.perturbation, idx)
+            
+            if self.random_occ:
+                if self.split == 'test_train' and idx != 0:
+                    t = idx
+                    img = add_perturbation(img, self.perturbation, idx)
+
+            else:
+                if np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold :
+                    t = idx
+                    img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
             img = img.resize(self.img_wh, Image.LANCZOS)
             img = self.transform(img) # (4, H, W)
             valid_mask = (img[-1]>0).flatten() # (H*W) valid color area
