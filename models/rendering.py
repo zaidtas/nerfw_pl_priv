@@ -79,7 +79,7 @@ def render_rays(models,
     Outputs:
         result: dictionary containing final rgb and depth maps for coarse and fine models
     """
-
+    # import pdb; pdb.set_trace()
     def inference(results, model, xyz, z_vals, test_time=False, **kwargs):
         """
         Helper function that performs model inference.
@@ -255,6 +255,7 @@ def render_rays(models,
 
     results = {}
     output_transient = False
+    # import pdb; pdb.set_trace()
     inference(results, models['coarse'], xyz_coarse, z_vals, test_time, **kwargs)
 
     if N_importance > 0: # sample points for fine model

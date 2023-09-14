@@ -34,15 +34,17 @@ def add_perturbation(img, perturbation, seed, random_occ = True):
 
 class BlenderDataset(Dataset):
     def __init__(self, root_dir, split='train', img_wh=(800, 800),
-                 perturbation=[], random_occ = True, occ_yaw = 0.0, yaw_threshold = 20.0):
+                 perturbation=[], random_occ = True, occ_yaw = 0.0, yaw_threshold = 20.0, all_img_occ = False):
         self.root_dir = root_dir
         self.occ_yaw = occ_yaw
         self.yaw_threshold = yaw_threshold
+        self.all_img_occ = all_img_occ
         self.add_to_public_data = [3,13,21,33,48,55]
         self.split = split
         self.random_occ = random_occ
         assert img_wh[0] == img_wh[1], 'image width must equal image height!'
         self.img_wh = img_wh
+        # import pdb; pdb.set_trace()
         self.define_transforms()
 
         assert set(perturbation).issubset({"color", "occ"}), \
@@ -99,19 +101,19 @@ class BlenderDataset(Dataset):
                 image_path = os.path.join(self.root_dir, f"{frame['file_path']}.png")
                 img = Image.open(image_path)
 
-                if self.perturbation == [] and np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold and t not in self.add_to_public_data:
-                    #skip the image and print the image path
-                    print('skipping image:', image_path)
-                    continue
+                # if self.perturbation == [] #and np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold and t not in self.add_to_public_data:
+                #     #skip the image and print the image path
+                #     print('skipping image:', image_path)
+                #     continue
 
-
-                if self.random_occ:
-                    if t != 0:                        
-                        img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
-                else:
-                    if np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold and t not in self.add_to_public_data:
-                        print('image:', image_path)
-                        img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
+                if not self.perturbation == []:
+                    if self.random_occ:
+                        if t != 0:                        
+                            img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
+                    else:
+                        if (np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold and t not in self.add_to_public_data) or self.all_img_occ:
+                            # print('image:', image_path)
+                            img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
 
 
                 img = img.resize(self.img_wh, Image.LANCZOS)
@@ -131,6 +133,7 @@ class BlenderDataset(Dataset):
 
             self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 3)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # (len(self.meta['frames])*h*w, 3)
+            # self.img_id = t
 
     def define_transforms(self):
         self.transform = T.ToTensor()
@@ -146,7 +149,8 @@ class BlenderDataset(Dataset):
         if self.split == 'train': # use data in the buffers
             sample = {'rays': self.all_rays[idx, :8],
                       'ts': self.all_rays[idx, 8].long(),
-                      'rgbs': self.all_rgbs[idx]}
+                      'rgbs': self.all_rgbs[idx],
+                      'img_id': idx}
 
         else: # create data for each image separately
             frame = self.meta['frames'][idx]
@@ -168,15 +172,16 @@ class BlenderDataset(Dataset):
 
             img = Image.open(os.path.join(self.root_dir, f"{frame['file_path']}.png"))
             
-            if self.random_occ:
-                if self.split == 'test_train' and idx != 0:
-                    t = idx
-                    img = add_perturbation(img, self.perturbation, idx)
+            if not self.perturbation == []:
+                if self.random_occ:
+                    if self.split == 'test_train' and idx != 0:
+                        t = idx
+                        img = add_perturbation(img, self.perturbation, idx)
 
-            else:
-                if np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold :
-                    t = idx
-                    img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
+                else:
+                    if (np.abs(yaw_deg-self.occ_yaw)<self.yaw_threshold and np.abs(pitch_deg-self.occ_yaw)<self.yaw_threshold) or self.all_img_occ :
+                        t = idx
+                        img = add_perturbation(img, self.perturbation, t,random_occ=self.random_occ)
             img = img.resize(self.img_wh, Image.LANCZOS)
             img = self.transform(img) # (4, H, W)
             valid_mask = (img[-1]>0).flatten() # (H*W) valid color area

@@ -109,6 +109,7 @@ class NeRFSystem(LightningModule):
             kwargs['random_occ'] = not self.hparams.nonrandom_occ
             kwargs['occ_yaw'] = self.hparams.occ_yaw
             kwargs['yaw_threshold'] = self.hparams.yaw_threshold
+            kwargs['all_img_occ'] = self.hparams.all_img_occ
         self.train_dataset = dataset(split='train', **kwargs)
         self.val_dataset = dataset(split='val', **kwargs)
 
