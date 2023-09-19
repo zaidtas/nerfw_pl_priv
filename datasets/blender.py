@@ -201,7 +201,7 @@ class BlenderDataset(Dataset):
                       'c2w': c2w,
                       'valid_mask': valid_mask}
 
-            if self.split == 'test_train' and self.perturbation:
+            if self.split == 'test_train':# and self.perturbation:
                  # append the original (unperturbed) image
                 img = Image.open(os.path.join(self.root_dir, f"{frame['file_path']}.png"))
                 img = img.resize(self.img_wh, Image.LANCZOS)

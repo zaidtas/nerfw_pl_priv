@@ -160,6 +160,8 @@ class NeRFSystem(LightningModule):
         loss = sum(l for l in loss_d.values())
         log = {'val_loss': loss}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
+
+        import pdb; pdb.set_trace()
     
         if batch_nb == 0:
             if self.hparams.dataset_name == 'phototourism':

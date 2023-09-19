@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '7'
+os.environ["CUDA_VISIBLE_DEVICES"] = '5'
 
 from opt import get_opts
 import torch
@@ -200,7 +200,7 @@ def main(hparams):
 
     logger = TensorBoardLogger("logs",
                             name=hparams.exp_name,
-                            log_graph=False)
+                            log_graph=True)
 
     trainer = Trainer(max_epochs=hparams.num_epochs,
                       callbacks=checkpoint_callback,

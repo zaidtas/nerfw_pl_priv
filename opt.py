@@ -92,6 +92,8 @@ def get_opts():
                         help='lr is multiplied by this factor after --warmup_epochs')
     parser.add_argument('--warmup_epochs', type=int, default=0,
                         help='Gradually warm-up(increasing) learning rate in optimizer')
+    parser.add_argument('--all_img_occ', default=False, action="store_true",
+                    help='whether to add black occlusion to all images')
     ###########################
     #### params for steplr ####
     parser.add_argument('--decay_step', nargs='+', type=int, default=[20],
