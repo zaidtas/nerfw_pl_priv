@@ -160,8 +160,8 @@ class NeRFSystem(LightningModule):
         loss = sum(l for l in loss_d.values())
         log = {'val_loss': loss}
         typ = 'fine' if 'rgb_fine' in results else 'coarse'
-
-        import pdb; pdb.set_trace()
+        
+        # import pdb; pdb.set_trace()
     
         if batch_nb == 0:
             if self.hparams.dataset_name == 'phototourism':
@@ -169,14 +169,20 @@ class NeRFSystem(LightningModule):
                 W, H = WH[0, 0].item(), WH[0, 1].item()
             else:
                 W, H = self.hparams.img_wh
-            img = results[f'rgb_{typ}'].view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
+            if self.hparams.encode_t:
+                img = results['_rgb_fine_static'].view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
+            else:
+                img = results[f'rgb_{typ}'].view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
             img_gt = rgbs.view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
             depth = visualize_depth(results[f'depth_{typ}'].view(H, W)) # (3, H, W)
             stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
             self.logger.experiment.add_images('val/GT_pred_depth',
                                                stack, self.global_step)
 
-        psnr_ = psnr(results[f'rgb_{typ}'], rgbs)
+        if self.hparams.encode_t:
+            psnr_ = psnr(results['_rgb_fine_static'], rgbs)
+        else:
+            psnr_ = psnr(results[f'rgb_{typ}'], rgbs)
         log['val_psnr'] = psnr_
 
         return log

@@ -113,5 +113,22 @@ def get_opts():
     # Federated Learning parameters
     parser.add_argument('--num_clients', type=int, default=1,help='number of clients')
     parser.add_argument('--num_rounds', type=int, default=10,help='number of rounds')
+    parser.add_argument('--public_dataset', default=False, action="store_true",
+                    help='whether to use public dataset for training')
+    parser.add_argument('--train_public_model', default=False, action="store_true",
+                    help='whether to use public dataset for training')
+    parser.add_argument('--public_num_epochs', type=int, default=10,help='number of epochs for public dataset')
+    parser.add_argument('--public_root_dir', type=str, default=None,help='root directory of public dataset')
+
+    # FedLearning Strategy parameters
+    parser.add_argument('--fraction_fit', type=float, default=1.0,help='Sample percent of available clients for training')
+    parser.add_argument('--fraction_evaluate', type=float, default=0.1,help='Sample percent of available clients for evaluation')
+    parser.add_argument('--min_fit_clients', type=int, default=4,help='Minimum number of clients to sample for training')
+    parser.add_argument('--min_evaluate_clients', type=int, default=1,help='Minimum number of clients to sample for evaluation')
+    parser.add_argument('--min_available_clients', type=float, default=0.75,help='wait until these fraction of clients are available')
+
+    # FedLearning Client Resources
+    parser.add_argument('--num_cpus_per_client', type=int, default=8, help='Number of CPUs to use per client')
+    parser.add_argument('--frac_gpus_per_client', type=float, default=0.5, help='Fraction of GPUs to use per client')
 
     return parser.parse_args()

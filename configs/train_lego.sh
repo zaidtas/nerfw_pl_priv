@@ -4,9 +4,10 @@ python train.py \
    --N_importance 64 --img_wh 400 400 --noise_std 0 \
    --num_epochs 20 --batch_size 1024 \
    --optimizer adam --lr 5e-4 --lr_scheduler cosine \
-   --encode_t --beta_min 0.1 \
-   --exp_name lego_nerfU_people_nonIID
+   --exp_name lego_nerf_people_nonIID_try2
+   # --ckpt_path /home/zt16/code/priv-nerf/nerfw_pl_priv/ckpts/lego_nerf_people_nonIID/epoch=9.ckpt
 
+   # --encode_t --beta_min 0.1 \
 
    # /home/zt16/code/priv-nerf/nerfw_pl_priv/data/lego/res400_360view 
 

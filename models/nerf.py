@@ -1,5 +1,8 @@
 import torch
-from torch import nn
+import torch.nn as nn
+import torch.nn.functional as F
+from collections import defaultdict
+from models.rendering import *
 
 class PosEmbedding(nn.Module):
     def __init__(self, max_logscale, N_freqs, logscale=True):
@@ -162,3 +165,65 @@ class NeRF(nn.Module):
                                transient_beta], 1) # (B, 5)
 
         return torch.cat([static, transient], 1) # (B, 9)
+
+class Net(nn.Module):
+    def __init__(self, hparams,full_dataset) -> None:
+        super(Net,self).__init__()
+        self.hparams = hparams
+        self.full_dataset = full_dataset
+#         self.loss = loss_dict['nerfw'](coef=1)
+
+        self.models_to_train = []
+        self.embedding_xyz = PosEmbedding(hparams.N_emb_xyz-1, hparams.N_emb_xyz)
+        self.embedding_dir = PosEmbedding(hparams.N_emb_dir-1, hparams.N_emb_dir)
+        self.embeddings = {'xyz': self.embedding_xyz,
+                           'dir': self.embedding_dir}
+
+        if hparams.encode_a:
+            self.embedding_a = torch.nn.Embedding(hparams.N_vocab, hparams.N_a)
+            self.embeddings['a'] = self.embedding_a
+            self.models_to_train += [self.embedding_a]
+        if hparams.encode_t:
+            self.embedding_t = torch.nn.Embedding(hparams.N_vocab, hparams.N_tau)
+            self.embeddings['t'] = self.embedding_t
+            self.models_to_train += [self.embedding_t]
+
+        self.nerf_coarse = NeRF('coarse',
+                                in_channels_xyz=6*hparams.N_emb_xyz+3,
+                                in_channels_dir=6*hparams.N_emb_dir+3)
+        self.models = {'coarse': self.nerf_coarse}
+        if hparams.N_importance > 0:
+            self.nerf_fine = NeRF('fine',
+                                  in_channels_xyz=6*hparams.N_emb_xyz+3,
+                                  in_channels_dir=6*hparams.N_emb_dir+3,
+                                  encode_appearance=hparams.encode_a,
+                                  in_channels_a=hparams.N_a,
+                                  encode_transient=hparams.encode_t,
+                                  in_channels_t=hparams.N_tau,
+                                  beta_min=hparams.beta_min)
+            self.models['fine'] = self.nerf_fine
+        self.models_to_train += [self.models]
+
+    def forward(self, rays, ts):
+        B = rays.shape[0]
+        results = defaultdict(list)
+        for i in range(0, B, self.hparams.chunk):
+            rendered_ray_chunks = \
+                render_rays(self.models,
+                            self.embeddings,
+                            rays[i:i+self.hparams.chunk],
+                            ts[i:i+self.hparams.chunk],
+                            self.hparams.N_samples,
+                            self.hparams.use_disp,
+                            self.hparams.perturb,
+                            self.hparams.noise_std,
+                            self.hparams.N_importance,
+                            self.hparams.chunk, # chunk size is effective in val mode
+                            self.full_dataset.white_back)
+
+            for k, v in rendered_ray_chunks.items():
+                results[k] += [v]
+
+        for k, v in results.items():
+            results[k] = torch.cat(v, 0)
+        return results
