@@ -97,7 +97,7 @@ class FlowerClient(fl.client.NumPyClient):
                 
         state_dict_all = self.model.state_dict()
         
-        if hparams.encode_t:
+        if self.hparams.encode_t:
             state_dict_transient = OrderedDict({k: v for k, v in state_dict_all.items() if k in self.transient_keys })
             ckpt_file = os.path.join(f'ckpts/{self.hparams.exp_name}/clients/client_{self.client_num:0>2d}/epoch_{server_round_:0>2d}.pth')
             torch.save(state_dict_transient,ckpt_file)

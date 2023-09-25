@@ -89,7 +89,7 @@ def main(hparams):
             fraction_fit=hparams.fraction_fit, 
             fraction_evaluate=hparams.fraction_evaluate,
             min_fit_clients=hparams.min_fit_clients,  
-            min_evaluate_clients=hparams.min_fit_clients, 
+            min_evaluate_clients=hparams.min_evaluate_clients, 
             min_available_clients=int(
                 NUM_CLIENTS * hparams.min_available_clients
             ),  
@@ -103,7 +103,7 @@ def main(hparams):
             fraction_fit=hparams.fraction_fit, 
             fraction_evaluate=hparams.fraction_evaluate,
             min_fit_clients=hparams.min_fit_clients,  
-            min_evaluate_clients=hparams.min_fit_clients, 
+            min_evaluate_clients=hparams.min_evaluate_clients, 
             min_available_clients=int(
                 NUM_CLIENTS * hparams.min_available_clients
             ),  
@@ -117,8 +117,7 @@ def main(hparams):
 
     client_fn_callback = generate_client_fn(trainloaders, valloaders,hparams,full_dataset_central)
 
-    logger_filename = f'ckpts/{hparams.exp_name}.txt'
-    fl.common.logger.configure(identifier="myFlowerExperiment", filename=logger_filename)
+    
     # With a dictionary, you tell Flower's VirtualClientEngine that each
     # client needs exclusive access to these many resources in order to run
     client_resources = {"num_cpus": hparams.num_cpus_per_client, "num_gpus": hparams.frac_gpus_per_client}
@@ -127,6 +126,9 @@ def main(hparams):
         os.system(f'mkdir -p ckpts/{hparams.exp_name}/clients/client_{i:0>2d}')
         os.system(f'mkdir -p ckpts/{hparams.exp_name}/clients-static/client_{i:0>2d}')
 
+    logger_filename = f'ckpts/{hparams.exp_name}.txt'
+    fl.common.logger.configure(identifier="myFlowerExperiment", filename=logger_filename)
+    
     history = fl.simulation.start_simulation(
         client_fn=client_fn_callback,  # a callback to construct a client
         num_clients=NUM_CLIENTS,  # total number of clients in the experiment

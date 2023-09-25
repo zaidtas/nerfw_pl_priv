@@ -1,22 +1,25 @@
-# nerf_pl
+# Fed NeRF-W
 
-Unofficial implementation of [NeRF-W](https://nerf-w.github.io/) (NeRF in the wild) using pytorch ([pytorch-lightning](https://github.com/PyTorchLightning/pytorch-lightning)). I try to reproduce (some of) the results on the lego dataset (Section D). Training on [Phototourism real images](https://github.com/ubc-vision/image-matching-benchmark) (as the main content of the paper) has also passed. Please read the following sections for the results.
+Federated Implementation of [NeRF-W](https://nerf-w.github.io/) (NeRF in the wild) using pytorch.
+The Central Learning implementation is in pytorch lightning
 
-The code is largely based on NeRF implementation (see master or dev branch), the main difference is the model structure and the rendering process, which can be found in the two files under `models/`.
+# Installation
+* Clone this repo by `git clone this repo`
 
-# :computer: Installation
+## For Central Learning (Pytorch Lightning)
 
-## Hardware
 
-* OS: Ubuntu 18.04
-* NVIDIA GPU with **CUDA>=10.2** (tested with 1 RTX2080Ti)
-
-## Software
-
-* Clone this repo by `git clone https://github.com/kwea123/nerf_pl`
 * Python>=3.6 (installation via [anaconda](https://www.anaconda.com/distribution/) is recommended, use `conda create -n nerf_pl python=3.6` to create a conda environment and activate it by `conda activate nerf_pl`)
 * Python libraries
     * Install core requirements by `pip install -r requirements.txt`
+
+## For Federated Learning (Flower+Pytorch)
+
+Python>=3.10 (installation via [anaconda](https://www.anaconda.com/distribution/) is recommended, use `conda create -n flower_nerf python=3.10` to create a conda environment and activate it by `conda activate flower_nerf`)
+
+* Python libraries
+    * Install core requirements by `pip install -r requirements_fl.txt`
+
     
 # :key: Training
 
@@ -29,66 +32,35 @@ The code is largely based on NeRF implementation (see master or dev branch), the
    
 ### Data download
 
-Download `nerf_synthetic.zip` from [here](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1)
+Download `nerf_synthetic.zip` from (add links )[here](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1)
 
 ### Data perturbations
 
 All random seeds are fixed to reproduce the same perturbations every time.
 For detailed implementation, see [blender.py](datasets/blender.py).
 
-*  Color perturbations: Uses the same parameters in the paper.
+*  Add link to blender file for people occlusion
 
-![color](https://user-images.githubusercontent.com/11364490/105580035-4ad3b780-5dcd-11eb-97cc-4cea3c9743ac.gif)
 
-*  Occlusions: The square has size 200x200 (should be the same as the paper), the position is randomly sampled inside the central 400x400 area; the 10 colors are random.
+### Training Central model
 
-![occ](https://user-images.githubusercontent.com/11364490/105578658-283da080-5dc5-11eb-9438-9368ee241cde.gif)
-
-*  Combined: First perturb the color then add square.
-
-![combined](https://user-images.githubusercontent.com/11364490/105580018-31cb0680-5dcd-11eb-82bf-eca3133f2586.gif)
-
-### Training model
-
-Base:
 ```
-python train.py \
-   --dataset_name blender \
-   --root_dir $BLENDER_DIR \
-   --N_importance 64 --img_wh 400 400 --noise_std 0 \
-   --num_epochs 20 --batch_size 1024 \
-   --optimizer adam --lr 5e-4 --lr_scheduler cosine \
-   --exp_name exp
+./configs/train_lego.sh
 ```
 
 Add `--encode_a` for appearance embedding, `--encode_t` for transient embedding.
-
-Add `--data_perturb color occ` to perturb the dataset.
-
-Example:
-```
-python train.py \
-   --dataset_name blender \
-   --root_dir $BLENDER_DIR \
-   --N_importance 64 --img_wh 400 400 --noise_std 0 \
-   --num_epochs 20 --batch_size 1024 \
-   --optimizer adam --lr 5e-4 --lr_scheduler cosine \
-   --exp_name exp \
-   --data_perturb occ \
-   --encode_t --beta_min 0.1
-```
-
-To train NeRF-U on occluders (Table 3 bottom left).
 
 See [opt.py](opt.py) for all configurations.
 
 You can monitor the training process by `tensorboard --logdir logs/` and go to `localhost:6006` in your browser.
 
-Example training loss evolution (NeRF-U on occluders):
+### Training Fed model
 
-![log](https://user-images.githubusercontent.com/11364490/105621776-a72aeb80-5e4e-11eb-9d12-c8b6f2336d25.png)
+```
+./configs/train_lego_fl.sh
+```
 
-</details>
+
 
 ## Phototourism dataset
 
@@ -126,9 +98,6 @@ python train.py \
 `--N_vocab` should be set to an integer larger than the number of images (dependent on different scenes). For example, "brandenburg_gate" has in total 1363 images (under `dense/images/`), so any number larger than 1363 works (no need to set to exactly the same number). **Attention!** If you forget to set this number, or it is set smaller than the number of images, the program will yield `RuntimeError: CUDA error: device-side assert triggered` (which comes from `torch.nn.Embedding`).
 
 </details>
-
-## Pretrained models and logs
-Download the pretrained models and training logs in [release](https://github.com/kwea123/nerf_pl/releases).
 
 # :mag_right: Testing
 
